@@ -1,0 +1,1 @@
+# if-you-are-rich-then-do-not-solve-algorithm
