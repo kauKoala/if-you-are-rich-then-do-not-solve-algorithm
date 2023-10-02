@@ -4,10 +4,12 @@ using namespace std;
 const int MX = 10;
 
 int n, m, k;
+int turn;
 int board[MX + 1][MX + 1];
 int t[MX + 1][MX + 1];  // 언제 공격했는지
 pair<int, int> c[MX + 1][MX + 1];
-bool a[MX + 1][MX + 1]; // 이번 턴에 관여한 포탑 여부
+bool a[MX + 1][MX + 1];  // 이번 턴에 관여한 포탑 여부
+bool vis[MX + 1][MX + 1];
 
 pair<int, int> attacker;
 pair<int, int> attacked;
@@ -15,117 +17,67 @@ pair<int, int> attacked;
 int dx[] = {0, 1, 0, -1, -1, -1, 1, 1};
 int dy[] = {1, 0, -1, 0, -1, 1, -1, 1};
 
-bool cmp1(pair<int, int> l, pair<int, int> r) {
+bool cmp(pair<int, int> l, pair<int, int> r) {
     int lx = l.first;
     int ly = l.second;
     int rx = r.first;
     int ry = r.second;
 
-    if (t[lx][ly] > t[rx][ry]) {
-        return true;
-    } else if (t[lx][ly] == t[rx][ry]) {
-        if (lx + ly > rx + ry) {
-            return true;
-        } else if (lx + ly == rx + ry) {
-            if (ly > ry) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-bool cmp2(pair<int, int> l, pair<int, int> r) {
-    int lx = l.first;
-    int ly = l.second;
-    int rx = r.first;
-    int ry = r.second;
-    
-    if (t[lx][ly] < t[rx][ry]) {
-        return true;
-    } else if (t[lx][ly] == t[rx][ry]) {
-        if (lx + ly < rx + ry) {
-            return true;
-        } else if (lx + ly == rx + ry) {
-            if (ly < ry) {
-                return true;
-            }
-        }
-    }
-
-    return false;
+    if (board[lx][ly] != board[rx][ry]) return board[lx][ly] < board[rx][ry];
+    if (t[lx][ly] != t[rx][ry]) return t[lx][ly] > t[rx][ry];
+    if (lx + ly != rx + ry) return lx + ly > rx + ry;
+    return ly > ry;
 }
 
 void find_attacker() {
     vector<pair<int, int>> tmp;
-    int mn = 987654321;
 
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < m; j++) {
             if (board[i][j] == 0) {
                 continue;
             }
-            if (board[i][j] < mn) {
-                tmp.clear();
-                tmp.push_back({i, j});
-                mn = board[i][j];
-            } else if (board[i][j] == mn) {
-                tmp.push_back({i, j});
-            }
+            tmp.push_back({i, j});
         }
     }
 
-    if (tmp.size() >= 2) {
-        sort(tmp.begin(), tmp.end(), cmp1);
-    }
-
+    sort(tmp.begin(), tmp.end(), cmp);
     attacker = tmp[0];
+
+    board[attacker.first][attacker.second] += (n + m);  // 공격자 공격력 증가
+    t[attacker.first][attacker.second] = turn;          // 공격시간 최신화
+    a[attacker.first][attacker.second] = true;          // 공격자 공격에 관여
 }
 
 void find_attacked() {
-    vector<pair<int, int>> tmp;
-    int mx = -1;
+    vector<pair<int, int> > tmp;
 
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < m; j++) {
-            if (board[i][j] == 0 || (i == attacker.first && j == attacker.second)) {
+            if (board[i][j] == 0) {
                 continue;
             }
-            if (board[i][j] > mx) {
-                tmp.clear();
-                tmp.push_back({i, j});
-                mx = board[i][j];
-            } else if (board[i][j] == mx) {
-                tmp.push_back({i, j});
+            // 공격자 제외
+            if (i == attacker.first && j == attacker.second) {
+                continue;
             }
+            tmp.push_back({i, j});
         }
     }
 
-    if (tmp.size() >= 2) {
-        sort(tmp.begin(), tmp.end(), cmp2);
-    }
-
-    attacked = tmp[0];
+    sort(tmp.begin(), tmp.end(), cmp);
+    attacked = tmp[tmp.size() - 1];
 }
 
 bool lazer_attack() {
-    // 좌표 저장 초기화
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            c[i][j] = {0, 0};
-        }
-    }
-
-    bool vis[MX + 1][MX + 1] = {0, };
-    queue<pair<int ,int> > q;
+    queue<pair<int, int> > q;
 
     q.push({attacker.first, attacker.second});
     vis[attacker.first][attacker.second] = true;
-    c[attacker.first][attacker.second] = {-1 , -1}; // 시작은 {-1, -1}
 
-    while(!q.empty()) {
-        pair<int, int> cur = q.front(); q.pop();
+    while (!q.empty()) {
+        pair<int, int> cur = q.front();
+        q.pop();
         int cx = cur.first;
         int cy = cur.second;
 
@@ -134,24 +86,8 @@ bool lazer_attack() {
         }
 
         for (int dir = 0; dir < 4; dir++) {
-            int nx = cx + dx[dir];
-            int ny = cy + dy[dir];
-            
-            if (nx < 0) {
-                nx = n - 1;
-            }
-
-            if (nx >= n) {
-                nx = 0;
-            }
-
-            if (ny < 0) {
-                ny = m - 1;
-            }
-
-            if (ny >= n) {
-                ny = 0;
-            }
+            int nx = (cx + dx[dir] + n) % n;
+            int ny = (cy + dy[dir] + m) % m;
 
             if (board[nx][ny] == 0 || vis[nx][ny]) {
                 continue;
@@ -168,38 +104,25 @@ bool lazer_attack() {
 
 void shell_attack() {
     int damage = board[attacker.first][attacker.second];
-
     board[attacked.first][attacked.second] -= damage;
     if (board[attacked.first][attacked.second] < 0) {
         board[attacked.first][attacked.second] = 0;
     }
+    a[attacked.first][attacked.second] = true;
 
     for (int dir = 0; dir < 8; dir++) {
-        int nx = attacked.first + dx[dir];
-        int ny = attacked.second + dy[dir];
+        int nx = (attacked.first + dx[dir] + n) % n;
+        int ny = (attacked.second + dy[dir] + m) % m;
 
-        if (nx < 0) {
-            nx = n - 1;
-        }
-
-        if (nx >= n) {
-            nx = 0;
-        }
-
-        if (ny < 0) {
-            ny = m - 1;
-        }
-
-        if (ny >= m) {
-            ny = 0;
-        }
-
-        // 공격자는 영향을 받지 않는다
+        // 공격자는 영향을 받지 않음
         if (nx == attacker.first && ny == attacker.second) {
             continue;
         }
 
         board[nx][ny] -= (damage / 2);
+        if (board[nx][ny] < 0) {
+            board[nx][ny] = 0;
+        }
         a[nx][ny] = true;
     }
 }
@@ -211,30 +134,29 @@ void attack() {
         // 레이저 공격
         int damage = board[attacker.first][attacker.second];
         board[attacked.first][attacked.second] -= damage;
-        a[attacked.first][attacked.second] = true;
         if (board[attacked.first][attacked.second] < 0) {
             board[attacked.first][attacked.second] = 0;
         }
+        a[attacked.first][attacked.second] = true;
 
-        int cx = attacked.first;
-        int cy = attacked.second;
+        int cx = c[attacked.first][attacked.second].first;
+        int cy = c[attacked.first][attacked.second].second;
 
-        while(true) {
-            int px = c[cx][cy].first;
-            int py = c[cx][cy].second;
-
-            if (px == attacker.first && py == attacker.second) {
+        while (true) {
+            if (cx == attacker.first && cy == attacker.second) {
                 break;
             }
-
-            board[px][py] -= (damage / 2);
-            a[px][py] = true;
-            if (board[px][py] < 0) {
-                board[px][py] = 0;
+            board[cx][cy] -= (damage / 2);
+            if (board[cx][cy] < 0) {
+                board[cx][cy] = 0;
             }
+            a[cx][cy] = true;
 
-            cx = px;
-            cy = py;          
+            int nx = c[cx][cy].first;
+            int ny = c[cx][cy].second;
+
+            cx = nx;
+            cy = ny;
         }
     }
 }
@@ -249,6 +171,21 @@ void maintain_turret() {
     }
 }
 
+void init() {
+    turn++;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < m; j++) {
+            a[i][j] = false;
+        }
+    }
+
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < m; j++) {
+            vis[i][j] = false;
+        }
+    }
+}
+
 void print_answer() {
     int ans = 0;
     for (int i = 0; i < n; i++) {
@@ -256,40 +193,34 @@ void print_answer() {
             ans = max(ans, board[i][j]);
         }
     }
-
     cout << ans;
-}
-
-void print_turret() {
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < m; j++) {
-            cout << board[i][j] << " ";
-        }
-        cout << '\n';
-    }
 }
 
 int main() {
     ios::sync_with_stdio(false);
     cin.tie(nullptr);
-    
+
     cin >> n >> m >> k;
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < m; j++) {
             cin >> board[i][j];
         }
     }
-    
-    for (int time = 1; time <= k; time++) {
-        for (int i = 0; i < n; i++) {
-            for (int j = 0; j < m; j++) {
-                a[i][j] = false;
+
+    while (k--) {
+        int ans = 0;
+        for (int x = 0; x < n; x++) {
+            for (int y = 0; y < m; y++) {
+                if (board[x][y]) {
+                    ans++;
+                }
             }
         }
+        if (ans <= 1) {
+            break;
+        }
+        init();
         find_attacker();
-        board[attacker.first][attacker.second] += (n + m); // 공격자 공격력 증가
-        t[attacker.first][attacker.second] = time; // 공격시간 최신화
-        a[attacker.first][attacker.second] = true; // 공격자 공격에 관여
         find_attacked();
         attack();
         maintain_turret();
